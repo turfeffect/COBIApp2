@@ -85,12 +85,8 @@ ui <- fluidPage(
     ),
     
     # Show a plot of the generated distribution
-    mainPanel(h2("Vista Previa de Datos de Salida"),                                               
-              sliderInput(inputId="filas",
-                          label="Indique número de filas",
-                          min=0,
-                          max=100,
-                          value=20),
+    mainPanel(h2("Vista Previa de Datos de Salida"),                                        
+              textOutput(outputId = "texto1"),
               tableOutput("table"),
               downloadButton('downloadData',
                              'Descargar'))
@@ -98,7 +94,11 @@ ui <- fluidPage(
 )
 
 # Define server logic required to draw a histogram
-server <- shinyServer(function(input, output) {})
+server <- shinyServer(function(input, output) {
+  
+  output$texto1 <- renderText(exp="Se muestran las primeras 25 filas del documento")
+  
+})
 
 # Run the application 
 shinyApp(ui = ui, server = server)
