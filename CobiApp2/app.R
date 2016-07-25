@@ -45,6 +45,8 @@
 ################################################################################################################
 
 library(shiny)
+library(tidyr)
+library(dplyr)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -55,19 +57,37 @@ ui <- fluidPage(
   
   # Sidebar with a slider input for number of bins 
   sidebarLayout(
-    sidebarPanel(h2("Lista de especies"),
-                 fileInput(inputId ="lista",
+    sidebarPanel(img(src="cobi.jpg", width="60px"),
+                 img(src="turf.jpg", width="60px"),
+                 h2("Lista de especies"),
+                 fileInput(inputId ="list",
                            label = "Seleccionar archivo",
                            accept = ".csv"),
+                 selectInput(inputId='sepinl',
+                             label='Separador',
+                             choices=c("Coma"=',',
+                                       "Punto y coma"=';',
+                                       "Tabulación"='\t',
+                                       "Espacio"=" "),
+                             selected = ','),
+                 
                  h2("Base de datos"),
-                 fileInput(inputId ="datos",
+                 fileInput(inputId ="dataset",
                            label = "Seleccionar archivo",
                            accept = ".csv"),
+                 selectInput(inputId='sepind',
+                             label='Separador',
+                             choices=c("Coma"=',',
+                                       "Punto y coma"=';',
+                                       "Tabulación"='\t',
+                                       "Espacio"=" "),
+                             selected = ','),
+                 
                  selectInput(inputId = "completer",
                              label = "Completar abundancias por:",
-                             choices = c("Región",
-                                         "Localidad"),
-                             selected = "Región"),
+                             choices = c("Región" = "R",
+                                         "Localidad" = "L"),
+                             selected = "R"),
                  h2("Ejemplos de Formatos"),
                  downloadButton('downloadA',
                                 'Lista'),
@@ -84,7 +104,7 @@ ui <- fluidPage(
                  a("Licensed under MIT", href="https://github.com/turfeffect/COBIApp/blob/master/LICENSE", target="_blank")
     ),
     
-    # Show a plot of the generated distribution
+    # Show a preview of the table
     mainPanel(h2("Vista Previa de Datos de Salida"),                                        
               textOutput(outputId = "texto1"),
               tableOutput("table"),
@@ -93,10 +113,187 @@ ui <- fluidPage(
   )
 )
 
-# Define server logic required to draw a histogram
+# Define server
 server <- shinyServer(function(input, output) {
   
+  if (input$completer == "R"){
+    # Completar por región
+    
+    listInput <- reactive({
+      inFile <- input$list
+      if (is.null(inFile)){
+        return(NULL)}
+      
+      list <- read.csv(inFile$datapath, sep = input$sepinl) %>%
+        select(Region = Región, GeneroEspecie = Genero...Especie) %>%
+        mutate(Dia = NA, #Set proper column names to avoid weird characters
+               Mes = NA,
+               Ano = NA,
+               Estado = NA,
+               Comunidad = NA,
+               Sitio = NA,
+               Latitud = NA,
+               Longitud = NA,
+               Habitat = NA,
+               Zonificacion = NA,
+               TipoDeProteccion = NA,
+               ANP = NA,
+               BuzoMonitor = NA,
+               HoraInicialBuceo = NA,
+               HoraFinalBuceo = NA,
+               ProfundidadInicial_m = NA,
+               ProfundidadFinal_m = NA,
+               Temperatura_C = NA,
+               Visibilidad_m = NA,
+               Corriente = NA,
+               Transecto = 9999,
+               Genero = NA,
+               Especie = NA,
+               Sexo = NA,
+               Talla = NA,
+               PromedioDeTalla = NA,
+               Abundancia = 0) %>%
+        select(Dia, #Set proper column names to avoid weird characters
+               Mes,
+               Ano,
+               Estado,
+               Comunidad,
+               Sitio,
+               Latitud,
+               Longitud,
+               Habitat,
+               Zonificacion,
+               TipoDeProteccion,
+               ANP,
+               BuzoMonitor,
+               HoraInicialBuceo,
+               HoraFinalBuceo,
+               ProfundidadInicial_m,
+               ProfundidadFinal_m,
+               Temperatura_C,
+               Visibilidad_m,
+               Corriente,
+               Transecto,
+               Genero,
+               Especie,
+               GeneroEspecie,
+               Sexo,
+               Talla,
+               PromedioDeTalla,
+               Abundancia) %>%
+        mutate(Id=paste(Dia, Mes, Ano, Estado, Comunidad, Sitio, Latitud, Longitud, sep="-")) %>%
+        select(Id, GeneroEspecie, Talla, PromedioDeTalla, Abundancia)
+    })
+    
+    datasetInput=reactive({
+      inFile <- input$dataset
+      if (is.null(inFile))
+        return(NULL)
+      dataset <- read.csv(inFile$datapath, sep = input$sepind)
+      colnames(dataset) <- c('Dia', #Set proper column names to avoid weird characters
+                             'Mes',
+                             'Ano',
+                             'Estado',
+                             'Comunidad',
+                             'Sitio',
+                             'Latitud',
+                             'Longitud',
+                             'Habitat',
+                             'Zonificacion',
+                             'TipoDeProteccion',
+                             'ANP',
+                             'BuzoMonitor',
+                             'HoraInicialBuceo',
+                             'HoraFinalBuceo',
+                             'ProfundidadInicial_m',
+                             'ProfundidadFinal_m',
+                             'Temperatura_C',
+                             'Visibilidad_m',
+                             'Corriente',
+                             'Transecto',
+                             'Genero',
+                             'Especie',
+                             'GeneroEspecie',
+                             'Sexo',
+                             'Talla',
+                             'PromedioDeTalla',
+                             'Abundancia')
+      dataset <- dataset %>%
+        mutate(Id=paste(Dia, Mes, Ano, Estado, Comunidad, Sitio, Latitud, Longitud, sep="-"))
+      
+      dataset2 <- dataset %>%
+        select(Id, GeneroEspecie, Talla, PromedioDeTalla, Abundancia) %>%
+        rbind(list) %>%
+        complete(Id, GeneroEspecie, fill = list(Abundancia = 0)) %>%
+        left_join(dataset, by="Id") %>%
+        filter(!Transecto == 999) %>%
+        select(-c(1:5))
+      
+      colnames(dataset2) <- c('Dia', #Set proper column names to avoid weird characters
+                              'Mes',
+                              'Ano',
+                              'Estado',
+                              'Comunidad',
+                              'Sitio',
+                              'Latitud',
+                              'Longitud',
+                              'Habitat',
+                              'Zonificacion',
+                              'TipoDeProteccion',
+                              'ANP',
+                              'BuzoMonitor',
+                              'HoraInicialBuceo',
+                              'HoraFinalBuceo',
+                              'ProfundidadInicial_m',
+                              'ProfundidadFinal_m',
+                              'Temperatura_C',
+                              'Visibilidad_m',
+                              'Corriente',
+                              'Transecto',
+                              'Genero',
+                              'Especie',
+                              'GeneroEspecie',
+                              'Sexo',
+                              'Talla',
+                              'PromedioDeTalla',
+                              'Abundancia')
+      
+    })
+    
+  }
+  
+  if (input$completer == "L"){
+    # Completar por localidad
+    
+    listInput=reactive({
+      inFile <- input$list
+      if (is.null(inFile))
+        return(NULL)
+      list=read.csv(inFile$datapath, sep = input$sepinl)
+    })
+    
+    datasetInput=reactive({
+      inFile <- input$dataset
+      if (is.null(inFile))
+        return(NULL)
+      dataset=read.csv(inFile$datapath, sep = input$sepind)
+    })
+    
+  }
+  
+  
   output$texto1 <- renderText(exp="Se muestran las primeras 25 filas del documento")
+  
+  output$table <- renderTable({
+    head(datasetInput(), 25)
+  })
+  
+  output$downloadData <- downloadHandler(
+    filename = function(){paste(input$dataset)},
+    content = function(file) {
+      write.csv(datasetInput(), file, row.names=F)
+    }
+  )
   
 })
 
